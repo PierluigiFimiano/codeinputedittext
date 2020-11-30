@@ -1,0 +1,3 @@
+include ':codeinputedittext'
+include ':app'
+rootProject.name = "CodeInputEditTextExample"
