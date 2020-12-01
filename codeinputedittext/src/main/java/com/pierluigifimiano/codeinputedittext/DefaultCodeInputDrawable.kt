@@ -64,10 +64,17 @@ class DefaultCodeInputDrawable : Drawable(), CodeInputBackgroundCallback {
         }
     }
 
-    override fun onMeasureChanged(start: Int, width: Int) {
-        if (_start != start || _width != width) {
+    override fun onMeasureChanged(
+        width: Int,
+        height: Int,
+        paddingStart: Int,
+        paddingTop: Int,
+        paddingEnd: Int,
+        paddingBottom: Int
+    ) {
+        if (_start != paddingStart || _width != width) {
             _width = width
-            _start = start
+            _start = paddingStart
             invalidateSelf()
         }
     }

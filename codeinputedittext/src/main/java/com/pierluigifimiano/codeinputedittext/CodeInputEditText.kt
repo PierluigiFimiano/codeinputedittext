@@ -23,67 +23,42 @@ class CodeInputEditText @JvmOverloads constructor(
     private val backgroundCallback: CodeInputBackgroundCallback?
         get() = background as? CodeInputBackgroundCallback
 
-    private var perform = false
+    var codeLength: Int = 0
+        set(value) {
+            if (value <= 0) {
+                throw IllegalArgumentException()
+            }
 
-    var codeLength: Int = -1
-        set(value) = internalSetCodeLength(value)
-
-    private fun internalSetCodeLength(length: Int) {
-        if (length <= 0) {
-            throw IllegalArgumentException()
-        }
-
-        if (codeLength == length) {
-            return
-        }
-        codeLength = length
-
-        val new: MutableList<InputFilter> = mutableListOf()
-        for (filter: InputFilter in filters) {
-            if (filter is InputFilter.LengthFilter && filter.max == length) {
+            if (field == value) {
                 return
             }
-            new.add(filter)
-        }
-        new.add(InputFilter.LengthFilter(length))
+            field = value
 
-        perform { filters = new.toTypedArray() }
-    }
+            val new: MutableList<InputFilter> = mutableListOf()
+            for (filter: InputFilter in filters) {
+                if (filter is InputFilter.LengthFilter) {
+                    if (filter.max == value) {
+                        return
+                    }
+                } else {
+                    new.add(filter)
+                }
+            }
+            new.add(InputFilter.LengthFilter(value))
+
+            filters = new.toTypedArray()
+        }
 
     init {
         val cAttrs: TypedArray = context.theme.obtainStyledAttributes(
             attrs, R.styleable.CodeInputEditText, defStyleAttr, 0
         )
         try {
-            internalSetCodeLength(
-                cAttrs.getInt(
-                    R.styleable.CodeInputEditText_codeLength,
-                    DEFAULT_CODE_LENGTH
-                )
-            )
+            codeLength =
+                cAttrs.getInt(R.styleable.CodeInputEditText_codeLength, DEFAULT_CODE_LENGTH)
         } finally {
             cAttrs.recycle()
         }
-    }
-
-    /**
-     * Calling this method has no effects
-     */
-    override fun setTypeface(tf: Typeface?) {
-        if (!perform) {
-            return
-        }
-        super.setTypeface(tf)
-    }
-
-    /**
-     * Calling this method has no effects
-     */
-    override fun setLetterSpacing(letterSpacing: Float) {
-        if (!perform) {
-            return
-        }
-        super.setLetterSpacing(letterSpacing)
     }
 
     override fun setBackground(background: Drawable?) {
@@ -96,10 +71,15 @@ class CodeInputEditText @JvmOverloads constructor(
     override fun setFilters(filters: Array<out InputFilter>) {
         var new: Array<out InputFilter> = filters
 
-        if (!perform && findLengthFilter(filters) == null) {
-            new = Array(filters.size + 1) { filters[it] }
-            new[filters.size] = findLengthFilter(this.filters)
-                ?: InputFilter.LengthFilter(codeLength)
+        if (findLengthFilter(filters) == null) {
+            val size: Int = filters.size
+            new = Array(size + 1) {
+                if (it == size) {
+                    findLengthFilter(this.filters) ?: InputFilter.LengthFilter(codeLength)
+                } else {
+                    filters[it]
+                }
+            }
         }
 
         super.setFilters(new)
@@ -122,13 +102,13 @@ class CodeInputEditText @JvmOverloads constructor(
         var canDraw = true
 
         if (typeface != Typeface.MONOSPACE) {
-            perform { typeface = Typeface.MONOSPACE }
+            typeface = Typeface.MONOSPACE
             canDraw = false
         }
 
         val spacing: Float = measureSpacing()
         if (letterSpacing != spacing) {
-            perform { letterSpacing = spacing }
+            letterSpacing = spacing
             canDraw = false
         }
 
@@ -160,13 +140,22 @@ class CodeInputEditText @JvmOverloads constructor(
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
-        totalWidth = measuredWidth - compoundPaddingLeft - compoundPaddingRight
-        backgroundCallback?.onMeasureChanged(compoundPaddingLeft, totalWidth)
-    }
 
-    private inline fun perform(block: () -> Unit) {
-        perform = true
-        block.invoke()
-        perform = false
+        val paddingStart: Int = compoundPaddingLeft
+        val paddingEnd: Int = compoundPaddingRight
+        val paddingBottom: Int = measuredHeight - baseline
+        val paddingTop: Int = compoundPaddingTop + paddingBottom - compoundPaddingBottom
+        val height: Int = measuredHeight - paddingTop - paddingBottom
+
+        totalWidth = measuredWidth - paddingStart - paddingEnd
+
+        backgroundCallback?.onMeasureChanged(
+            totalWidth,
+            height,
+            paddingStart,
+            paddingTop,
+            paddingEnd,
+            paddingBottom
+        )
     }
 }
