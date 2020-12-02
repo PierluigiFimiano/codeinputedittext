@@ -18,44 +18,29 @@ class CodeInputEditText @JvmOverloads constructor(
     defStyleAttr: Int = com.google.android.material.R.attr.editTextStyle
 ) : TextInputEditText(context, attrs, defStyleAttr) {
 
-    private var totalWidth: Int by Delegates.notNull()
+    private var unpaddedWidth: Int by Delegates.notNull()
 
     private val backgroundCallback: CodeInputBackgroundCallback?
         get() = background as? CodeInputBackgroundCallback
 
-    var codeLength: Int = 0
-        set(value) {
-            if (value <= 0) {
-                throw IllegalArgumentException()
-            }
-
-            if (field == value) {
-                return
-            }
-            field = value
-
-            val new: MutableList<InputFilter> = mutableListOf()
-            for (filter: InputFilter in filters) {
-                if (filter is InputFilter.LengthFilter) {
-                    if (filter.max == value) {
-                        return
-                    }
-                } else {
-                    new.add(filter)
-                }
-            }
-            new.add(InputFilter.LengthFilter(value))
-
-            filters = new.toTypedArray()
+    var codeLength: Int by Delegates.observable(0) { _, oldValue, newValue ->
+        if (newValue < 0) {
+            throw IllegalArgumentException()
         }
+        if (oldValue != newValue) {
+            filters = arrayOf(*filters)
+        }
+    }
+
 
     init {
         val cAttrs: TypedArray = context.theme.obtainStyledAttributes(
             attrs, R.styleable.CodeInputEditText, defStyleAttr, 0
         )
         try {
-            codeLength =
-                cAttrs.getInt(R.styleable.CodeInputEditText_codeLength, DEFAULT_CODE_LENGTH)
+            codeLength = cAttrs.getInt(
+                R.styleable.CodeInputEditText_codeLength, DEFAULT_CODE_LENGTH
+            )
         } finally {
             cAttrs.recycle()
         }
@@ -69,29 +54,35 @@ class CodeInputEditText @JvmOverloads constructor(
     }
 
     override fun setFilters(filters: Array<out InputFilter>) {
-        var new: Array<out InputFilter> = filters
 
-        if (findLengthFilter(filters) == null) {
-            val size: Int = filters.size
-            new = Array(size + 1) {
-                if (it == size) {
-                    findLengthFilter(this.filters) ?: InputFilter.LengthFilter(codeLength)
-                } else {
-                    filters[it]
+        val new: MutableList<InputFilter> = mutableListOf()
+        var founded = false
+
+        for (filter: InputFilter in filters) {
+            if (filter is InputFilter.LengthFilter) {
+                if (!founded && filter.max == codeLength) {
+                    new.add(filter)
+                    founded = true
+                }
+            } else {
+                new.add(filter)
+            }
+        }
+
+        if (!founded) {
+            for (filter: InputFilter in this.filters) {
+                if (filter is InputFilter.LengthFilter && filter.max == codeLength) {
+                    new.add(filter)
+                    founded = true
+                    break
                 }
             }
-        }
-
-        super.setFilters(new)
-    }
-
-    private fun findLengthFilter(filters: Array<out InputFilter>): InputFilter.LengthFilter? {
-        for (filter: InputFilter in filters) {
-            if (filter is InputFilter.LengthFilter && filter.max == codeLength) {
-                return filter
+            if (!founded) {
+                new.add(InputFilter.LengthFilter(codeLength))
             }
         }
-        return null
+
+        super.setFilters(new.toTypedArray())
     }
 
     override fun onPreDraw(): Boolean {
@@ -128,7 +119,7 @@ class CodeInputEditText @JvmOverloads constructor(
         // Restore paint state
         paint.letterSpacing = letterSpacing
 
-        val measuredWidth: Int = totalWidth - 2
+        val measuredWidth: Int = unpaddedWidth - 2
         val spacingPx: Float = (measuredWidth - codeLength * em1) / codeLength
 
         val ration: Float = 1.0F / (em2 - em1)
@@ -145,13 +136,13 @@ class CodeInputEditText @JvmOverloads constructor(
         val paddingEnd: Int = compoundPaddingRight
         val paddingBottom: Int = measuredHeight - baseline
         val paddingTop: Int = compoundPaddingTop + paddingBottom - compoundPaddingBottom
-        val height: Int = measuredHeight - paddingTop - paddingBottom
+        val unpaddedHeight: Int = measuredHeight - paddingTop - paddingBottom
 
-        totalWidth = measuredWidth - paddingStart - paddingEnd
+        unpaddedWidth = measuredWidth - paddingStart - paddingEnd
 
         backgroundCallback?.onMeasureChanged(
-            totalWidth,
-            height,
+            unpaddedWidth,
+            unpaddedHeight,
             paddingStart,
             paddingTop,
             paddingEnd,
