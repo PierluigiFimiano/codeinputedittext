@@ -2,5 +2,6 @@
 <resources>
     <declare-styleable name="CodeInputEditText">
         <attr name="codeLength" format="integer" />
+        <attr name="minLetterSpacing" format="float" />
     </declare-styleable>
 </resources>
